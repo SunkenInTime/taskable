@@ -1,0 +1,33 @@
+{
+  "name": "taskable",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "dev": "ts-node src/main.ts",
+    "clean": "rm -rf dist"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SunkenInTime/taskable.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/SunkenInTime/taskable/issues"
+  },
+  "homepage": "https://github.com/SunkenInTime/taskable#readme",
+  "description": "",
+  "dependencies": {
+    "@types/node": "^24.0.4",
+    "@types/ws": "^8.18.1",
+    "dotenv": "^16.6.1",
+    "node-record-lpcm16": "^1.0.1",
+    "speaker": "^0.5.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3",
+    "ws": "^8.18.2"
+  }
+}
