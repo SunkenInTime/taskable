@@ -4,6 +4,7 @@ import * as recorder from 'node-record-lpcm16';
 import Speaker = require('speaker');
 import { EventEmitter } from 'events';
 import { PassThrough } from 'stream';
+import * as fs from 'fs/promises';
 
 interface GeminiSetupMessage {
     setup: {
@@ -25,6 +26,8 @@ interface GeminiAudioInput {
 
 interface GeminiResponse {
     serverContent?: {
+        generationComplete?: boolean;
+
         modelTurn?: {
             parts: Array<{
                 inlineData?: {
@@ -45,7 +48,8 @@ class GeminiLiveAudio extends EventEmitter {
     private speaker: Speaker | null = null;
     private isConnected: boolean = false;
     private isRecording: boolean = false;
-    private audioStream: PassThrough | null = null;
+    private currentAudio: string = "";
+
 
     constructor(apiKey: string) {
         super();
@@ -184,21 +188,27 @@ class GeminiLiveAudio extends EventEmitter {
         this.websocket.send(JSON.stringify(audioMessage));
     }
 
-    private handleGeminiResponse(response: GeminiResponse): void {
+    private async handleGeminiResponse(response: GeminiResponse): Promise<void> {
         if (response.setupComplete) {
             console.log('Setup completed');
             this.isConnected = true; // Set the flag to true
             return;
         }
 
+        if (response.serverContent?.generationComplete) {
+            await this.playAudioResponse(this.currentAudio);
+        }
         if (response.serverContent?.modelTurn) {
             const parts = response.serverContent.modelTurn.parts;
 
-            parts.forEach(part => {
+            parts.forEach(async part => {
                 if (part.inlineData?.mimeType === 'audio/pcm;rate=24000') {
                     console.log('Received audio response');
-                    this.playAudioResponse(part.inlineData.data);
+
+                    this.currentAudio += part.inlineData.data;
+
                 }
+
 
                 if (part.text) {
                     console.log('Gemini text response:', part.text);
@@ -207,54 +217,121 @@ class GeminiLiveAudio extends EventEmitter {
         }
     }
 
+    private async playAudioResponse(base64AudioData: string): Promise<void> {
+        return new Promise((resolve, reject) => {
+            try {
+                const audioBuffer = Buffer.from(base64AudioData, 'base64');
+                console.log(`Playing audio chunk of length: ${audioBuffer.length}`);
+
+                if (audioBuffer.length === 0) {
+                    console.error('Audio buffer is empty!');
+                    resolve();
+                    return;
+                }
+
+                const speaker = new Speaker({
+                    channels: 1,
+                    bitDepth: 16,
+                    sampleRate: 24000
+                });
+
+                speaker.on('close', () => {
+                    console.log('Audio playback finished');
+                    this.currentAudio = "";
+                    resolve();
+                });
+
+                speaker.on('error', (error) => {
+                    console.error('Speaker error:', error);
+                    reject(error);
+                });
+
+                speaker.write(audioBuffer);
+                speaker.end();
+
+            } catch (error) {
+                console.error('Error playing audio response:', error);
+                reject(error);
+            }
+        });
+    }
+
+
+    private async saveOutputText(text: string): Promise<void> {
+
+        const timestamp = Date.now();
+        const content = text;
+        const filePath = `output-${timestamp}.txt`;
+        try {
+
+            await fs.appendFile(filePath, content, 'utf8');
+            console.log('Output text saved to', filePath);
+        } catch (err) {
+            console.error('Error saving output text:', err);
+        }
+    }
+    // private async playAudioResponse(base64AudioData: string): Promise<void> {
+    //     return new Promise((resolve, reject) => {
+    //         try {
+    //             const audioBuffer = Buffer.from(base64AudioData, 'base64');
+    //             console.log(`Playing audio chunk of length: ${audioBuffer.length}`);
+
+    //             const passThrough = new PassThrough();
+    //             if (!this.speaker) {
+    //                 this.speaker = new Speaker({
+    //                     channels: 1,
+    //                     bitDepth: 16,
+    //                     sampleRate: 24000,
+    //                 });
+    //             }
+
+    //             // Pipe the PassThrough stream into the speaker.
+    //             passThrough.pipe(this.speaker, { end: false });
+
+    //             // Write the buffer to the stream and end it.
+    //             passThrough.end(audioBuffer, () => {
+    //                 // Optionally, wait a little bit for playback 
+    //                 // by listening to the speaker's close or other events.
+    //                 resolve();
+    //             });
+
+    //             passThrough.on('error', (err) => {
+    //                 reject(err);
+    //             });
+    //         } catch (error) {
+    //             console.error('Error playing audio response:', error);
+    //             reject(error);
+    //         }
+    //     });
+    // }
     // private playAudioResponse(base64AudioData: string): void {
     //     try {
     //         const audioBuffer = Buffer.from(base64AudioData, 'base64');
-    //         console.log(`Playing audio chunk of length: ${audioBuffer.length}`);
-    //         // Create speaker instance if not exists
-    //         if (!this.speaker) {
-    //             this.speaker = new Speaker({
-    //                 channels: 1,
-    //                 bitDepth: 16,
-    //                 sampleRate: 24000
-    //             });
+    //         console.log(`Received audio chunk of length: ${audioBuffer.length}`);
+
+    //         // If there is no audioStream, create one and pipe it to the speaker.
+    //         if (!this.audioStream) {
+    //             this.audioStream = new PassThrough();
+
+    //             // Create speaker instance if it doesn't exist
+    //             if (!this.speaker) {
+    //                 this.speaker = new Speaker({
+    //                     channels: 1,
+    //                     bitDepth: 16,
+    //                     sampleRate: 24000,
+    //                 });
+
+    //                 // Pipe the audio stream into the speaker for continuous playback.
+    //                 this.audioStream.pipe(this.speaker);
+    //             }
     //         }
 
-    //         // Play the audio
-    //         this.speaker.write(audioBuffer);
-
+    //         // Push incoming chunk into the PassThrough stream.
+    //         this.audioStream.write(audioBuffer);
     //     } catch (error) {
     //         console.error('Error playing audio response:', error);
     //     }
     // }
-    private playAudioResponse(base64AudioData: string): void {
-        try {
-            const audioBuffer = Buffer.from(base64AudioData, 'base64');
-            console.log(`Received audio chunk of length: ${audioBuffer.length}`);
-
-            // If there is no audioStream, create one and pipe it to the speaker.
-            if (!this.audioStream) {
-                this.audioStream = new PassThrough();
-
-                // Create speaker instance if it doesn't exist
-                if (!this.speaker) {
-                    this.speaker = new Speaker({
-                        channels: 1,
-                        bitDepth: 16,
-                        sampleRate: 24000,
-                    });
-
-                    // Pipe the audio stream into the speaker for continuous playback.
-                    this.audioStream.pipe(this.speaker);
-                }
-            }
-
-            // Push incoming chunk into the PassThrough stream.
-            this.audioStream.write(audioBuffer);
-        } catch (error) {
-            console.error('Error playing audio response:', error);
-        }
-    }
 
     stopRecording(): void {
         if (this.recording && this.isRecording) {
