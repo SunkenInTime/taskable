@@ -21,9 +21,11 @@
   "homepage": "https://github.com/SunkenInTime/taskable#readme",
   "description": "",
   "dependencies": {
+    "@google/genai": "^1.8.0",
     "@types/node": "^24.0.4",
     "@types/ws": "^8.18.1",
     "dotenv": "^16.6.1",
+    "fetch-blob": "^4.0.0",
     "node-record-lpcm16": "^1.0.1",
     "speaker": "^0.5.5",
     "ts-node": "^10.9.2",
