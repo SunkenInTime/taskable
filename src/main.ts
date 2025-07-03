@@ -2,7 +2,9 @@
 
 import * as readline from 'readline';
 import * as dotenv from 'dotenv';
-import GeminiLiveAudio from './gemini-live-sdk-ver';
+import GeminiLiveAudio from './gemini-live-audio';
+// import GeminiLiveAudio from './gemini-live-sdk-ver';
+
 dotenv.config(); // Load environment variables from .env file
 
 const API_KEY: string | undefined = process.env.GEMINI_API_KEY; // Replace with your actual API key
