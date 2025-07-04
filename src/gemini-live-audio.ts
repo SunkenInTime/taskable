@@ -193,7 +193,7 @@ class GeminiLiveAudio extends EventEmitter {
         console.log('Force resetting audio system - creating new player instance');
 
         // Deactivate the current player
-        this.streamingPlayer.deactivate();
+        // this.streamingPlayer.deactivate();
 
         // Create a completely new instance
         this.streamingPlayer = new StreamingAudioPlayer();
